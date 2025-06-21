@@ -8,6 +8,7 @@ int main(int argc, char *argv[]) {
 
     // input buffer
     char input[100];
+    char command[100];
     while (1) {
         printf("$ ");
         if (fgets(input, sizeof(input), stdin)) {
@@ -20,12 +21,19 @@ int main(int argc, char *argv[]) {
             }
             // remove newline from input
             input[strcspn(input, "\n")] = '\0';
-            if (strncmp(input,"exit",4) == 0){
-              if (input[5] == '0')  
+
+            sscanf(input,"%[^ ]",command);
+            if (strcmp(command,"exit") == 0){
+                // TODO: fix this hardcode ; we are using fgets to get input so starting spaces won't be ignored and might cause a problem here
+                if (input[5] == '0')  
                 return EXIT_0;
               else
                 return atoi(&input[5]);
-            } else
+            } else if (strcmp(command,"echo") == 0) {
+                // TODO: fix this hardcode ; we are using fgets to get input so starting spaces won't be ignored and might cause a problem here
+                printf("%s\n",input +5);
+            } 
+            else
                 printf("%s: command not found\n", input);
         } else {
             printf("Error or EOF occurred\n");

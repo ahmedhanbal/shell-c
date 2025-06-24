@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #define BUFF_SIZE 256
-
+#define PATH_MAX 260
 
 void search_in_path(const char *typeis);
 void get_input(char *input, size_t size);
@@ -72,7 +72,7 @@ void parse_input(const char *input) {
     }
 }
 
-
+// TODO 2: Add searching without extension like .exe
 void search_in_path(const char *typeis) {
     char *path = getenv("PATH");
     if (path == NULL) {

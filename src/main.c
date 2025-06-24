@@ -3,6 +3,8 @@
 #include <string.h>
 #define BUFF_SIZE 256
 
+
+void search_in_path(const char *typeis);
 void get_input(char *input, size_t size);
 void parse_input(const char *input);
 
@@ -61,10 +63,58 @@ void parse_input(const char *input) {
             printf("echo is a shell builtin\n");
         else if (strcmp(typeis, "exit") == 0 )
             printf("exit is a shell builtin\n");
-        else
-            printf("%s: not found\n",typeis);
+        else{
+            search_in_path(typeis);
+        }
     }
     else {
-        printf("%s: command not found\n", input);
+        printf("%s: not found\n", input);
     }
+}
+
+
+void search_in_path(const char *typeis) {
+    char *path = getenv("PATH");
+    if (path == NULL) {
+        printf("PATH not found\n");
+        return;
+    }
+    char *pathCopy = strdup(path);
+    char *pathsStr =
+    #ifdef _WIN32
+        strtok(pathCopy, ";");
+    #else
+        strtok(pathCopy, ":");
+    #endif
+
+    char fullPath[PATH_MAX];
+
+    while (pathsStr != NULL) {
+        // Construct full path: directory + "/" + executable name
+        #ifdef _WIN32
+            snprintf(fullPath, sizeof(fullPath), "%s\\%s", pathsStr, typeis);
+        #else
+            snprintf(fullPath, sizeof(fullPath), "%s/%s", pathsStr, typeis);
+        #endif
+
+        // Try opening the file to see if it exists
+        FILE *file = fopen(fullPath, "r");
+        if (file != NULL) {
+            fclose(file);
+            printf("%s is %s\n", typeis, fullPath);
+            free(pathCopy);
+            return;
+        }
+
+        // Next var in PATH
+        pathsStr =
+        #ifdef _WIN32
+            strtok(NULL, ";");
+        #else
+            strtok(NULL, ":");
+        #endif
+    }
+
+    printf("%s: not found\n", typeis);
+    free(pathCopy);
 }

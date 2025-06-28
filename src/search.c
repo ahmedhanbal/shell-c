@@ -1,6 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "util.h"
 
 int search_in_path(const char *typeis, char *foundPath, size_t foundPathSize) {
     char *path = getenv("PATH");

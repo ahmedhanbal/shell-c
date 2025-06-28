@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "execute.c"
 #include "search.c"
 #define BUFF_SIZE 256

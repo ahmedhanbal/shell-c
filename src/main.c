@@ -1,6 +1,4 @@
 
-#include <stdio.h>
-#include <stdlib.h>
 #include "input.c"
 #define BUFF_SIZE 256
 

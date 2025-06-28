@@ -1,16 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#ifdef _WIN32
-#include <io.h>
-#include <windows.h>
-#else
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#endif
-#define PATH_MAX 260
-#define BUFF_SIZE 256
+#include "util.h"
 
 const char* get_basename(const char* path) {
     const char *base1 = strrchr(path, '/');

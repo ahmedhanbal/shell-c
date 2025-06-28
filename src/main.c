@@ -1,6 +1,5 @@
-
-#include "input.c"
-#define BUFF_SIZE 256
+#include "util.h"
+#include "input.h"
 
 int main(int argc, char *argv[]) {
     setbuf(stdout, NULL);

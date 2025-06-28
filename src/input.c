@@ -1,7 +1,6 @@
-#include "execute.c"
-#include "search.c"
-#define BUFF_SIZE 256
-#define PATH_MAX 260
+#include "input.h"
+#include "search.h"
+#include "execute.h"
 
 void get_input(char *input, size_t size) {
     if (fgets(input, size, stdin)) {
@@ -17,8 +16,6 @@ void get_input(char *input, size_t size) {
 }
 
 void parse_input(const char *input) {
-    extern int search_in_path(const char*, char*, size_t);
-    extern void execute_command_with_args(const char*, const char*);
     char command[100];
     sscanf(input, "%[^ ]", command);
     if (strcmp(command, "exit") == 0) {

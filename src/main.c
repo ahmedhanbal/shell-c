@@ -12,6 +12,8 @@
 #define BUFF_SIZE 256
 #define PATH_MAX 260
 
+
+const char* get_basename(const char* path);
 void execute_command_with_args(const char *cmdPath, const char *input);
 int search_in_path(const char *typeis, char *foundPath, size_t foundPathSize);
 void get_input(char *input, size_t size);
@@ -32,12 +34,21 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+// Helper to get basename from path
+const char* get_basename(const char* path) {
+    const char *base1 = strrchr(path, '/');
+    const char *base2 = strrchr(path, '\\');
+    const char *base = base1 > base2 ? base1 : base2;
+    return base ? base + 1 : path;
+}
+
 // Helper to execute a command with arguments (cross-platform)
 void execute_command_with_args(const char *cmdPath, const char *input) {
 #ifdef _WIN32
-    // Prepare command line: cmdPath plus arguments
+    // Prepare command line: program name plus arguments
     char cmdLine[BUFF_SIZE * 2];
-    snprintf(cmdLine, sizeof(cmdLine), "\"%s\"", cmdPath);
+    const char *progName = get_basename(cmdPath);
+    snprintf(cmdLine, sizeof(cmdLine), "\"%s\"", progName);
     // Extract arguments from input (skip command itself)
     const char *argsStart = strchr(input, ' ');
     if (argsStart && *(argsStart + 1) != '\0') {
@@ -46,8 +57,9 @@ void execute_command_with_args(const char *cmdPath, const char *input) {
     STARTUPINFO si = {0};
     PROCESS_INFORMATION pi = {0};
     si.cb = sizeof(si);
+    // Use full path for lpApplicationName, but command line starts with program name
     BOOL success = CreateProcessA(
-        NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi
+        (LPSTR)cmdPath, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi
     );
     if (!success) {
         fprintf(stderr, "Failed to execute: %s\n", cmdPath);
@@ -69,7 +81,7 @@ void execute_command_with_args(const char *cmdPath, const char *input) {
     char *argsStart = strchr(argsCopy, ' ');
     char *argv[BUFF_SIZE];
     int argc = 0;
-    argv[argc++] = (char *)cmdPath;
+    argv[argc++] = (char *)get_basename(cmdPath);
     if (argsStart) {
         // Split arguments
         char *token = strtok(argsStart + 1, " ");

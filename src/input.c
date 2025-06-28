@@ -5,11 +5,6 @@
 #define BUFF_SIZE 256
 #define PATH_MAX 260
 
-
-void get_input(char *input, size_t size);
-void parse_input(const char *input);
-
-
 void get_input(char *input, size_t size) {
     if (fgets(input, size, stdin)) {
         if (!strchr(input, '\n')) {

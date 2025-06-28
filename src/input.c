@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "execute.c"
+#include "search.c"
 #define BUFF_SIZE 256
 #define PATH_MAX 260
 

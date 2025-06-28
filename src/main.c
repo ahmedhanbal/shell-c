@@ -1,10 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <io.h> // For _access
+#include <windows.h>
+#else
+#include <unistd.h> // For access
+#include <sys/types.h>
+#include <sys/wait.h> // For waitpid
+#endif
 #define BUFF_SIZE 256
 #define PATH_MAX 260
 
-void search_in_path(const char *typeis);
+void execute_command_with_args(const char *cmdPath, const char *input);
+int search_in_path(const char *typeis, char *foundPath, size_t foundPathSize);
 void get_input(char *input, size_t size);
 void parse_input(const char *input);
 
@@ -23,6 +32,78 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+// Helper to execute a command with arguments (cross-platform)
+void execute_command_with_args(const char *cmdPath, const char *input) {
+#ifdef _WIN32
+    // Prepare command line: cmdPath plus arguments
+    char cmdLine[BUFF_SIZE * 2];
+    snprintf(cmdLine, sizeof(cmdLine), "\"%s\"", cmdPath);
+    // Extract arguments from input (skip command itself)
+    const char *argsStart = strchr(input, ' ');
+    if (argsStart && *(argsStart + 1) != '\0') {
+        strncat(cmdLine, argsStart, sizeof(cmdLine) - strlen(cmdLine) - 1);
+    }
+    STARTUPINFO si = {0};
+    PROCESS_INFORMATION pi = {0};
+    si.cb = sizeof(si);
+    BOOL success = CreateProcessA(
+        NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi
+    );
+    if (!success) {
+        fprintf(stderr, "Failed to execute: %s\n", cmdPath);
+        return;
+    }
+    // Wait for process to finish
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD exitCode = 0;
+    GetExitCodeProcess(pi.hProcess, &exitCode);
+    if (exitCode != 0) {
+        printf("Command exited with status %lu\n", exitCode);
+    }
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+#else
+    // Prepare arguments array
+    char argsCopy[BUFF_SIZE];
+    snprintf(argsCopy, sizeof(argsCopy), "%s", input);
+    char *argsStart = strchr(argsCopy, ' ');
+    char *argv[BUFF_SIZE];
+    int argc = 0;
+    argv[argc++] = (char *)cmdPath;
+    if (argsStart) {
+        // Split arguments
+        char *token = strtok(argsStart + 1, " ");
+        while (token && argc < BUFF_SIZE - 1) {
+            argv[argc++] = token;
+            token = strtok(NULL, " ");
+        }
+    }
+    argv[argc] = NULL;
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("Fork failed");
+        exit(EXIT_FAILURE);
+    }
+    if (pid == 0) {
+        execv(cmdPath, argv);
+        perror("execv failed");
+        exit(EXIT_FAILURE);
+    } else {
+        int status;
+        waitpid(pid, &status, 0);
+        if (WIFEXITED(status)) {
+            int exitStatus = WEXITSTATUS(status);
+            if (exitStatus != 0) {
+                printf("Command exited with status %d\n", exitStatus);
+            }
+        } else {
+            printf("Command did not terminate normally\n");
+        }
+    }
+#endif
+}
+
+
 void get_input(char *input, size_t size) {
     if (fgets(input, size, stdin)) {
         // this handles the case if input entered is larger than buffer size and there is leftover in stdin
@@ -39,82 +120,115 @@ void get_input(char *input, size_t size) {
     }
 }
 
-
-// TODOs : 
+// TODOs :
 // 1. fix this hardcode ; we are using fgets to get input so starting spaces won't be ignored and might cause a problem
 void parse_input(const char *input) {
     char command[100];
     sscanf(input, "%[^ ]", command);
 
-    if (strcmp(command, "exit") == 0) { 
-        if (input[5] == '0') 
+    if (strcmp(command, "exit") == 0) {
+        // Check if there's an argument after "exit"
+        if (strlen(input) > 4 && input[4] == ' ') {
+            int exit_code = atoi(&input[5]);
+            exit(exit_code);
+        } else {
             exit(EXIT_SUCCESS);
-        else
-            exit(atoi(&input[5]));  
-    } else if (strcmp(command, "echo") == 0) { 
-        printf("%s\n", input + 5); 
+        }    } else if (strcmp(command, "echo") == 0) {
+        printf("%s\n", input + 5);
     } else if (strcmp(command, "type") == 0) {
         int lenth = strlen(command) + 1;
         char typeis[20];
-        sscanf(input+lenth,"%[^ ]",typeis);
-        if (strcmp(typeis, "type") == 0 )
+        sscanf(input + lenth, "%[^ ]", typeis);
+        if (strcmp(typeis, "type") == 0)
             printf("type is a shell builtin\n");
-        else if (strcmp(typeis, "echo") == 0 )
+        else if (strcmp(typeis, "echo") == 0)
             printf("echo is a shell builtin\n");
-        else if (strcmp(typeis, "exit") == 0 )
+        else if (strcmp(typeis, "exit") == 0)
             printf("exit is a shell builtin\n");
-        else{
-            search_in_path(typeis);
+        else {
+            char foundPath[PATH_MAX];
+            int foundLen = search_in_path(typeis, foundPath, sizeof(foundPath));
+            if (foundLen > 0)
+                printf("%s is %s\n", typeis, foundPath);
+            else
+                printf("%s: not found\n", typeis);
         }
-    }
-    else {
-        printf("%s: not found\n", input);
+    } else {
+        // search for the command in PATH and execute it
+        char foundPath[PATH_MAX];
+        int foundLen = search_in_path(command, foundPath, sizeof(foundPath));
+        if (foundLen > 0) {
+            execute_command_with_args(foundPath, input);
+        } else {
+            printf("%s: not found\n", input);
+        }
     }
 }
 
 // TODO 2: Add searching without extension like .exe
-void search_in_path(const char *typeis) {
+int search_in_path(const char *typeis, char *foundPath, size_t foundPathSize) {
     char *path = getenv("PATH");
     if (path == NULL) {
-        printf("PATH not found\n");
-        return;
+        return 0;
     }
     char *pathCopy = strdup(path);
     char *pathsStr =
-    #ifdef _WIN32
+#ifdef _WIN32
         strtok(pathCopy, ";");
-    #else
+#else
         strtok(pathCopy, ":");
-    #endif
+#endif
 
     char fullPath[PATH_MAX];
 
     while (pathsStr != NULL) {
-        // Construct full path: directory + "/" + executable name
-        #ifdef _WIN32
-            snprintf(fullPath, sizeof(fullPath), "%s\\%s", pathsStr, typeis);
-        #else
-            snprintf(fullPath, sizeof(fullPath), "%s/%s", pathsStr, typeis);
-        #endif
+// Construct full path: directory + "/" + executable name
+#ifdef _WIN32
+        snprintf(fullPath, sizeof(fullPath), "%s\\%s", pathsStr, typeis);
+#else
+        snprintf(fullPath, sizeof(fullPath), "%s/%s", pathsStr, typeis);
+#endif
 
-        // Try opening the file to see if it exists
-        FILE *file = fopen(fullPath, "r");
-        if (file != NULL) {
-            fclose(file);
-            printf("%s is %s\n", typeis, fullPath);
+// Use access to check if file exists and is executable
+#ifdef _WIN32
+        if (_access(fullPath, 0) == 0) {
+            strncpy(foundPath, fullPath, foundPathSize - 1);
+            foundPath[foundPathSize - 1] = '\0';
+            int len = strlen(foundPath);
             free(pathCopy);
-            return;
+            return len;
         }
+        // Try with .exe extension if not already present
+        if (strstr(typeis, ".exe") == NULL) {
+            char exePath[PATH_MAX];
+            snprintf(exePath, sizeof(exePath), "%s\\%s.exe", pathsStr, typeis);
+            if (_access(exePath, 0) == 0) {
+                strncpy(foundPath, exePath, foundPathSize - 1);
+                foundPath[foundPathSize - 1] = '\0';
+                int len = strlen(foundPath);
+                free(pathCopy);
+                return len;
+            }
+        }
+#else
+        if (access(fullPath, X_OK) == 0) {
+            strncpy(foundPath, fullPath, foundPathSize - 1);
+            foundPath[foundPathSize - 1] = '\0';
+            int len = strlen(foundPath);
+            free(pathCopy);
+            return len;
+        }
+#endif
 
         // Next var in PATH
         pathsStr =
-        #ifdef _WIN32
+#ifdef _WIN32
             strtok(NULL, ";");
-        #else
+#else
             strtok(NULL, ":");
-        #endif
+#endif
     }
 
-    printf("%s: not found\n", typeis);
     free(pathCopy);
+    return 0;
 }
